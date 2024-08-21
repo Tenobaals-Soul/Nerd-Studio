@@ -49,7 +49,8 @@ RELCFLAGS = -O3 -DNDEBUG
 #
 # Linker and macro Settings
 #
-LFLAGS    = m
+LFLAGS    = m GL glfw GLU
+DEFINES   =
 METAFLAGS = $(addprefix -I, $(INC_DIR)) \
 			$(addprefix -D, $(DEFINES)) \
 			$(addprefix -l, $(LFLAGS))
