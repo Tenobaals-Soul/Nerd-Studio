@@ -3,6 +3,7 @@
 #include <GL/gl.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <limits.h>
 
 struct UICallbackTable {
     void (*ui_draw)(UIElement ui_element, int window_w, int window_h);
@@ -13,7 +14,8 @@ struct UICallbackTable {
 
 struct UIElement {
     enum UIType type;
-    double x, y, w, h, min_w, min_h, max_w, max_h;
+    int min_w, min_h, max_w, max_h;
+    double x, y, w, h;
     struct UIElement* parent;
     struct UIElement** children;
     int child_count;
@@ -21,32 +23,51 @@ struct UIElement {
     const struct UICallbackTable* callback;
 };
 
+static void dimensions(UIElement ui_element, int window_w, int window_h,
+                       int* x, int* y, int* w, int* h) {
+    *x = ui_element->x * window_w;
+    *y = ui_element->y * window_h;
+    *w = CLAMP(ui_element->min_w,
+               ui_element->max_w,
+               ui_element->w * window_w);
+    *h = CLAMP(ui_element->min_h,
+               ui_element->max_h,
+               ui_element->h * window_h);
+    if (*w < 0) {
+        *x += *w;       
+        *w = -*w;
+    }
+    if (*h < 0) {
+        *y += *h;
+        *h = -*h;
+    }
+}
+
 static void basic_draw(UIElement ui_element, int window_w, int window_h) {
     if (ui_element->style.border_strengh > 0) {
-        double tx = ui_element->style.border_strengh / (double) window_w;
-        double ty = ui_element->style.border_strengh / (double) window_h;
+        int t = ui_element->style.border_strengh;
+        int x, y, w, h;
+        dimensions(ui_element, window_w, window_h, &x, &y, &w, &h);
         glColor4ubv(ui_element->style.border_color.rgba);
-        glRectd(ui_element->x,
-                ui_element->y,
-                ui_element->x + ui_element->w,
-                ui_element->y + ty);
-        glRectd(ui_element->x,
-                ui_element->y + ui_element->h,
-                ui_element->x + ui_element->w,
-                ui_element->y + ui_element->h - ty);
-        glRectd(ui_element->x,
-                ui_element->y + ty,
-                ui_element->x + tx,
-                ui_element->y + ui_element->h - ty);
-        glRectd(ui_element->x + ui_element->w,
-                ui_element->y + ty,
-                ui_element->x + ui_element->w - tx,
-                ui_element->y + ui_element->h - ty);
+        glRectd(x,
+                y,
+                x + w,
+                y + t);
+        glRectd(x,
+                y + h,
+                x + w,
+                y + h - t);
+        glRectd(x,
+                y + t,
+                x + t,
+                y + h - t);
+        glRectd(x + w,
+                y + t,
+                x + w - t,
+                y + h - t);
         glColor4ubv(ui_element->style.background_color.rgba);
-        glRectd(ui_element->x + tx,
-                ui_element->y + ty,
-                ui_element->x + ui_element->w - tx,
-                ui_element->y + ui_element->h - ty);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        glRecti(x + t, y + t, x + w - t, y + h - t);
     }
 }
 
@@ -65,9 +86,18 @@ UIElement ui_canvas() {
     out->child_count = 0;
     out->children = NULL;
 
-    out->style.background_color = color32(0x00, 0x00, 0x00, 0x80);
+    out->x = 0;
+    out->y = 0;
+    out->w = 0;
+    out->h = 0;
+    out->min_w = 0;
+    out->max_w = INT_MAX;   
+    out->min_h = 0;
+    out->max_h = INT_MAX;
+
+    out->style.background_color = color32(0x20, 0x20, 0x20, 0x80);
     out->style.border_color = color32(0x20, 0x20, 0x20, 0xff);
-    out->style.border_strengh = 4;
+    out->style.border_strengh = 2;
     out->style.color = color32(0x20, 0x20, 0x20, 0xff);
 
     out->callback = &canvas_table;
@@ -82,7 +112,9 @@ void ui_draw(UIElement ui_element, int window_w, int window_h) {
         glEnable(GL_SCISSOR_TEST);
     else
         glGetIntegerv(GL_SCISSOR_BOX, scissors_box);
-    glScissor(ui_element->x * window_w, ui_element->y * window_h, ui_element->w * window_w, ui_element->h * window_h);
+    int x, y, w, h;
+    dimensions(ui_element, window_w, window_h, &x, &y, &w, &h);
+    glScissor(x + MIN(w, 0), y + MIN(h, 0), ABS(w), ABS(h));
     if (ui_element->callback->ui_draw)
         ui_element->callback->ui_draw(ui_element, window_w, window_h);
     if (!scissors) {
@@ -122,6 +154,14 @@ static int* find_param_i(UIElement ui_element, int param) {
     switch (param) {
     case UI_CHILD_COUNT:
         return &ui_element->child_count;
+    case UI_MIN_WIDTH:
+        return &ui_element->min_w;
+    case UI_MAX_WIDTH:
+        return &ui_element->max_w;
+    case UI_MIN_HEIGHT:
+        return &ui_element->min_h;
+    case UI_MAX_HEIGHT:
+        return &ui_element->max_h;
     default:
         return NULL;
     }
@@ -148,14 +188,6 @@ static double* find_param_d(UIElement ui_element, int param) {
         return &ui_element->w;
     case UI_HEIGHT:
         return &ui_element->h;
-    case UI_MIN_WIDTH:
-        return &ui_element->min_w;
-    case UI_MAX_WIDTH:
-        return &ui_element->max_w;
-    case UI_MIN_HEIGHT:
-        return &ui_element->min_h;
-    case UI_MAX_HEIGHT:
-        return &ui_element->max_h;
     default:
         return NULL;
     }
@@ -165,11 +197,17 @@ void ui_set_d(UIElement ui_element, int param, double val) {
     double* ptr = find_param_d(ui_element, param);
     if (ptr)
         *ptr = val;
+    else
+        printf("[UI][WARNING] trying to set invalid parameter set with type double\n");
 }
 
 double ui_get_d(UIElement ui_element, int param) {
     double* ptr = find_param_d(ui_element, param);
-    return ptr ? *ptr : 0;
+    if (ptr)
+        return *ptr;
+    else
+        printf("[UI][WARNING] trying to set invalid parameter set with type double\n");
+    return 0;
 }
 
 UIStyleSheet ui_access_stylesheet(UIElement ui_element) {

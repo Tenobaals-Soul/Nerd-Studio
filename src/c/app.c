@@ -6,9 +6,6 @@
 #include <ui.h>
 #include <stdio.h>
 
-#define MAX(a, b) ({typeof(a) _a = a; typeof(b) _b = b; _a > _b ? _a : _b;})
-#define MIN(a, b) ({typeof(a) _a = a; typeof(b) _b = b; _a < _b ? _a : _b;})
-
 struct program_state {
     GLFWwindow* window;
     struct user_config {
@@ -40,7 +37,7 @@ void close_func(GLFWwindow* window) {
 void resize_func(GLFWwindow* window, int x, int y) {
     (void) window; (void) x; (void) y;
     glLoadIdentity();
-    gluOrtho2D(0, 1, 0, 1);
+    gluOrtho2D(0, x, 0, y);
     glViewport(0, 0, x, y);
 }
 
@@ -57,7 +54,7 @@ static void setup_window(struct program_state* program_state) {
     glfwSetFramebufferSizeCallback(program_state->window, resize_func);
 
     glLoadIdentity();
-    gluOrtho2D(0, 1, 0, 1);
+    gluOrtho2D(0, w, 0, h);
     glViewport(0, 0, w, h);
 
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
@@ -72,11 +69,15 @@ static void setup_layout(struct program_state* program_state) {
     ui_set_d(program_state->left_ui, UI_Y, 0);
     ui_set_d(program_state->left_ui, UI_WIDTH, MAX(.2, 200 / w));
     ui_set_d(program_state->left_ui, UI_HEIGHT, 1);
+    ui_set_i(program_state->left_ui, UI_MIN_WIDTH, 200);
+    ui_set_i(program_state->left_ui, UI_MAX_WIDTH, 600);
     program_state->right_ui = ui_canvas();
-    ui_set_d(program_state->right_ui, UI_X, 1 - MAX(.2, 200 / w));
+    ui_set_d(program_state->right_ui, UI_X, 1);
     ui_set_d(program_state->right_ui, UI_Y, 0);
-    ui_set_d(program_state->right_ui, UI_WIDTH, MAX(.2, 200 / w));
+    ui_set_d(program_state->right_ui, UI_WIDTH, -MAX(.2, 200 / w));
     ui_set_d(program_state->right_ui, UI_HEIGHT, 1);
+    ui_set_i(program_state->right_ui, UI_MIN_WIDTH, -600);
+    ui_set_i(program_state->right_ui, UI_MAX_WIDTH, -200);
 }
 
 static void user_data_init(struct program_state* program_state) {
