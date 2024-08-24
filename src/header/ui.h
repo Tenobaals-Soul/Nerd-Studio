@@ -3,7 +3,7 @@
 #include <types.h>
 
 enum UIType {
-    UI_NO_TYPE, UI_CANVAS
+    UI_NO_TYPE, UI_CANVAS, UI_RESIZER
 };
 
 typedef struct UIStyleSheet {
@@ -15,11 +15,9 @@ typedef struct UIStyleSheet {
 
 typedef struct UIElement* UIElement;
 
-UIElement ui_canvas();
-void ui_draw(UIElement ui_element, int window_w, int window_h);
-void ui_mouse_down(UIElement ui_element, int button, int x, int y);
-void ui_mouse_up(UIElement ui_element, int button, int x, int y);
-void ui_mouse_moved(UIElement ui_element, int x, int y);
+enum ui_direction {
+    HORIZONTAL, VERTICAL
+};
 
 enum UI_CONSTS {
     UI_WIDTH,
@@ -32,6 +30,19 @@ enum UI_CONSTS {
     UI_MAX_HEIGHT,
     UI_CHILD_COUNT
 };
+
+UIElement ui_canvas(int window_w, int window_h);
+UIElement ui_resizer(int window_w, int window_h, enum ui_direction direction,
+                     UIElement item1, UIElement item2, double size);
+void ui_resizer_set_curser_func(UIElement ui_element, void (*curser_func)
+                                (void* user_data, enum ui_direction),
+                                void* user_data);
+
+void ui_draw(UIElement ui_element, int window_w, int window_h);
+void ui_resize(UIElement ui_element, int window_w, int window_h);
+void ui_mouse_down(UIElement ui_element, int button, int x, int y);
+void ui_mouse_up(UIElement ui_element, int button, int x, int y);
+void ui_mouse_moved(UIElement ui_element, int x, int y);
 
 void ui_set_i(UIElement ui_element, int param, int val);
 int ui_get_i(UIElement ui_element, int param);
