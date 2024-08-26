@@ -35,6 +35,9 @@ struct UIResizer {
     double side_ration;
     void (*set_cursor)(void* user_data, enum ui_direction);
     void* user_data;
+    bool currently_grabbed;
+    int window_w;
+    int window_h;
 };
 
 static void dimensions(UIElement ui_element, int window_w, int window_h,
@@ -59,6 +62,11 @@ static void dimensions(UIElement ui_element, int window_w, int window_h,
     ui_element->_y = *y;
     ui_element->_w = *w;
     ui_element->_h = *h;
+}
+
+static bool point_inside(UIElement ui_element, int x, int y) {
+    return x == CLAMP(ui_element->_x, ui_element->_x + ui_element->_w, x) &&
+           y == CLAMP(ui_element->_y, ui_element->_y + ui_element->_h, y);
 }
 
 static void init_ui_element(UIElement init, int window_w, int window_h) {
@@ -138,54 +146,112 @@ static void resizer_draw(UIElement ui_element, int window_w, int window_h) {
     if (res->direction == HORIZONTAL) {
         t = w * res->side_ration;
         for (int i = -2; i <= 2; i+=2)
-            glRecti(x,      y + (h - t) / 2 + i * t,
-                    x + t,  y + (h + t) / 2 + i * t);
+            glRecti(x + (w - t) / 2, y + (h - t) / 2 + i * t,
+                    x + (w + t) / 2, y + (h + t) / 2 + i * t);
     }
     else {
         t = h * res->side_ration;
         for (int i = -2; i <= 2; i+=2)
-            glRecti(x + (h - t) / 2 + i * t,  y,
-                    x + (h + t) / 2 + i * t,  y + t);
+            glRecti(x + (h - t) / 2 + i * t,  y + (w - t) / 2,
+                    x + (h + t) / 2 + i * t,  y + (w + t) / 2);
+    }
+}
+
+static void position_resizer(UIElement ui_element) {
+    struct UIResizer* resizer = GET_EXTENTION_DATA(ui_element, UI_RESIZER);
+    if (resizer->connected_item1 != NULL) {
+        int x, y, w, h;
+        dimensions(resizer->connected_item1, resizer->window_w, resizer->window_h, &x, &y, &w, &h);
+        if (resizer->direction == HORIZONTAL)
+            ui_element->x = (x + MIN(w, 0)) / (double) resizer->window_w;
+        else
+            ui_element->y = (y + MIN(w, 0)) / (double) resizer->window_h;
+    }
+    else if (resizer->connected_item2 != NULL) {
+        int x, y, w, h;
+        dimensions(resizer->connected_item2, resizer->window_w, resizer->window_h, &x, &y, &w, &h);
+        if (resizer->direction == HORIZONTAL)
+            ui_element->x = (x + MAX(w, 0)) / (double) resizer->window_w;
+        else
+            ui_element->y = (y + MAX(w, 0)) / (double) resizer->window_h;
     }
 }
 
 static void resizer_resize(UIElement ui_element, int window_w, int window_h) {
     struct UIResizer* resizer = GET_EXTENTION_DATA(ui_element, UI_RESIZER);
-    if (resizer->connected_item1 != NULL) {
-        int x, y, w, h;
-        dimensions(resizer->connected_item1, window_w, window_h, &x, &y, &w, &h);
-        if (resizer->direction == HORIZONTAL)
-            ui_element->x = (x + MIN(w, 0)) / (double) window_w;
-        else
-            ui_element->y = (y + MIN(w, 0)) / (double) window_h;
-    }
-    else if (resizer->connected_item2 != NULL) {
-        int x, y, w, h;
-        dimensions(resizer->connected_item2, window_w, window_h, &x, &y, &w, &h);
-        if (resizer->direction == HORIZONTAL)
-            ui_element->x = (x + MAX(w, 0)) / (double) window_w;
-        else
-            ui_element->y = (y + MAX(w, 0)) / (double) window_h;
-    }
+    resizer->window_w = window_w;
+    resizer->window_h = window_h;
+    position_resizer(ui_element);
 }
 
 static void resizer_mouse_down(UIElement ui_element, int button, int x, int y) {
     struct UIResizer* resizer = GET_EXTENTION_DATA(ui_element, UI_RESIZER);
     (void) resizer; (void) button; (void) x; (void) y;
+    if (button != 1)
+        return;
+    if (point_inside(ui_element, x, y))
+        resizer->currently_grabbed = true;
 }
 
 static void resizer_mouse_up(UIElement ui_element, int button, int x, int y) {
     struct UIResizer* resizer = GET_EXTENTION_DATA(ui_element, UI_RESIZER);
     (void) resizer; (void) button; (void) x; (void) y;
+    if (button != 1)
+        return;
+    resizer->currently_grabbed = false;
 }
 
 static void resizer_mouse_moved(UIElement ui_element, int x, int y) {
     struct UIResizer* resizer = GET_EXTENTION_DATA(ui_element, UI_RESIZER);
-    if (x == CLAMP(ui_element->_x, ui_element->_x + ui_element->_w, x) &&
-        y == CLAMP(ui_element->_y, ui_element->_y + ui_element->_h, y)) {
+    if (point_inside(ui_element, x, y) || resizer->currently_grabbed) {
         if (resizer->set_cursor)
             resizer->set_cursor(resizer->user_data, resizer->direction);
     }
+    if (resizer->currently_grabbed) {
+        if (resizer->direction == HORIZONTAL) {
+            double nx = x / (double) resizer->window_w;
+            if (resizer->connected_item1) {
+                if (resizer->connected_item1->w >= 0) {
+                    resizer->connected_item1->w = nx - resizer->connected_item1->x;
+                    resizer->connected_item1->x = nx;
+                }
+                else {
+                    resizer->connected_item1->w = nx - resizer->connected_item1->x;
+                }
+            }
+            if (resizer->connected_item2) {
+                if (resizer->connected_item2->w >= 0) {
+                    resizer->connected_item2->w = nx - resizer->connected_item2->x;
+                }
+                else {
+                    resizer->connected_item2->w = nx - resizer->connected_item2->x;
+                    resizer->connected_item2->x = nx;
+                }
+            }
+        }
+        else {
+            double ny = y / (double) resizer->window_h;
+            if (resizer->connected_item1) {
+                if (resizer->connected_item1->h >= 0) {
+                    resizer->connected_item1->h = ny - resizer->connected_item1->y;
+                    resizer->connected_item1->y = ny;
+                }
+                else {
+                    resizer->connected_item1->h = ny - resizer->connected_item1->y;
+                }
+            }
+            if (resizer->connected_item2) {
+                if (resizer->connected_item2->h >= 0) {
+                    resizer->connected_item2->h = ny - resizer->connected_item2->y;
+                }
+                else {
+                    resizer->connected_item2->h = ny - resizer->connected_item2->y;
+                    resizer->connected_item2->y = ny;
+                }
+            }
+        }
+    }
+    position_resizer(ui_element);
 }
 
 const struct UICallbackTable resizer_table = {
@@ -207,6 +273,9 @@ UIElement ui_resizer(int window_w, int window_h, enum ui_direction direction,
     resizer->connected_item2 = item2;
     resizer->direction = direction;
     resizer->side_ration = side;
+    resizer->window_w = window_w;
+    resizer->window_h = window_h;
+    resizer->currently_grabbed = false;
 
     if (item1 != NULL) {
         int x, y, w, h;
@@ -261,9 +330,6 @@ void ui_resize(UIElement ui_element, int window_w, int window_h) {
 }
 
 void ui_mouse_down(UIElement ui_element, int button, int x, int y) {
-    if (x < ui_element->x || x > ui_element->x + ui_element->w ||
-        y < ui_element->y || y > ui_element->y + ui_element->h)
-        return;
     if (ui_element->callback->ui_mouse_down)
         ui_element->callback->ui_mouse_down(ui_element, button, x, y);
     for (int i = 0; i < ui_element->child_count; i++)

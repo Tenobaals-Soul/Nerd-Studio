@@ -36,12 +36,12 @@ static void display_func(struct program_state* program_state) {
     glfwSwapBuffers(program_state->window);
 }
 
-void close_func(GLFWwindow* window) {
+static void close_func(GLFWwindow* window) {
     glfwSetWindowShouldClose(window, GLFW_TRUE);
     // glfwSetWindowShouldClose(window, GLFW_FALSE);
 }
 
-void resize_func(GLFWwindow* window, int x, int y) {
+static void resize_func(GLFWwindow* window, int x, int y) {
     struct program_state* program_state = glfwGetWindowUserPointer(window);
     glLoadIdentity();
     gluOrtho2D(0, x, 0, y);
@@ -51,11 +51,30 @@ void resize_func(GLFWwindow* window, int x, int y) {
     ui_resize(program_state->resizer_right, x, y);
 }
 
-void move_func(GLFWwindow* window, double x, double y) {
+static void move_func(GLFWwindow* window, double x, double y) {
     struct program_state* program_state = glfwGetWindowUserPointer(window);
     glfwSetCursor(window, program_state->standart_cur);
     ui_mouse_moved(program_state->resizer_left, x, y);
     ui_mouse_moved(program_state->resizer_right, x, y);
+}
+
+static void mouse_func(GLFWwindow* window, int button, int action, int mods) {
+    (void) mods;
+    struct program_state* program_state = glfwGetWindowUserPointer(window);
+    double xpos, ypos;
+    glfwGetCursorPos(window, &xpos, &ypos);
+    if (action == GLFW_PRESS) {
+        ui_mouse_down(program_state->left_ui, button + 1, xpos, ypos);
+        ui_mouse_down(program_state->right_ui, button + 1, xpos, ypos);
+        ui_mouse_down(program_state->resizer_left, button + 1, xpos, ypos);
+        ui_mouse_down(program_state->resizer_right, button + 1, xpos, ypos);
+    }
+    else if (action == GLFW_RELEASE) {
+        ui_mouse_up(program_state->left_ui, button + 1, xpos, ypos);
+        ui_mouse_up(program_state->right_ui, button + 1, xpos, ypos);
+        ui_mouse_up(program_state->resizer_left, button + 1, xpos, ypos);
+        ui_mouse_up(program_state->resizer_right, button + 1, xpos, ypos);
+    }
 }
 
 static void setup_window(struct program_state* program_state, int w, int h) {
@@ -69,6 +88,7 @@ static void setup_window(struct program_state* program_state, int w, int h) {
     glfwSetWindowCloseCallback(program_state->window, close_func);
     glfwSetFramebufferSizeCallback(program_state->window, resize_func);
     glfwSetCursorPosCallback(program_state->window, move_func);
+    glfwSetMouseButtonCallback(program_state->window, mouse_func);
 
     glLoadIdentity();
     gluOrtho2D(0, w, 0, h);
@@ -101,7 +121,7 @@ static void setup_layout(struct program_state* program_state, int w, int h) {
     ui_set_i(program_state->left_ui, UI_MAX_WIDTH, -200);
 
     program_state->resizer_left = ui_resizer(w, h, HORIZONTAL,
-                                             program_state->left_ui, NULL, 2);
+                                             program_state->left_ui, NULL, 1.5);
     ui_set_d(program_state->resizer_left, UI_Y, 0);
     ui_set_d(program_state->resizer_left, UI_WIDTH, 1);
     ui_set_d(program_state->resizer_left, UI_HEIGHT, 1);
@@ -109,7 +129,7 @@ static void setup_layout(struct program_state* program_state, int w, int h) {
     ui_set_i(program_state->resizer_left, UI_MAX_WIDTH, 4);
     ui_resizer_set_curser_func(program_state->resizer_left, set_cur, program_state);
     program_state->resizer_right = ui_resizer(w, h, HORIZONTAL,
-                                              NULL, program_state->right_ui, 2);
+                                              NULL, program_state->right_ui, 1.5);
     ui_set_d(program_state->resizer_right, UI_Y, 0);
     ui_set_d(program_state->resizer_right, UI_WIDTH, -1);
     ui_set_d(program_state->resizer_right, UI_HEIGHT, 1);
