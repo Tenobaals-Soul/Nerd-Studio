@@ -14,6 +14,7 @@ struct UICallbackTable {
     void (*ui_mouse_down)(UIElement ui_element, int button, int x, int y);
     void (*ui_mouse_up)(UIElement ui_element, int button, int x, int y);
     void (*ui_mouse_moved)(UIElement ui_element, int x, int y);
+    void (*ui_free)(UIElement ui_element);
 };
 
 struct UIElement {
@@ -38,6 +39,12 @@ struct UIResizer {
     bool currently_grabbed;
     int window_w;
     int window_h;
+};
+
+struct UIButton {
+    void (*on_click)(void* user_data);
+    void* user_data;
+    bool click_started;
 };
 
 static void dimensions(UIElement ui_element, int window_w, int window_h,
@@ -186,7 +193,6 @@ static void resizer_resize(UIElement ui_element, int window_w, int window_h) {
 
 static void resizer_mouse_down(UIElement ui_element, int button, int x, int y) {
     struct UIResizer* resizer = GET_EXTENTION_DATA(ui_element, UI_RESIZER);
-    (void) resizer; (void) button; (void) x; (void) y;
     if (button != 1)
         return;
     if (point_inside(ui_element, x, y))
@@ -194,8 +200,8 @@ static void resizer_mouse_down(UIElement ui_element, int button, int x, int y) {
 }
 
 static void resizer_mouse_up(UIElement ui_element, int button, int x, int y) {
+    (void) x; (void) y;
     struct UIResizer* resizer = GET_EXTENTION_DATA(ui_element, UI_RESIZER);
-    (void) resizer; (void) button; (void) x; (void) y;
     if (button != 1)
         return;
     resizer->currently_grabbed = false;
@@ -296,6 +302,45 @@ UIElement ui_resizer(int window_w, int window_h, enum ui_direction direction,
     return out;
 }
 
+static void button_mouse_down(UIElement ui_element, int mbutton, int x, int y) {
+    if (mbutton != 1)
+        return;
+    if (point_inside(ui_element, x, y)) {
+        struct UIButton* button = get_extention_data(ui_element);
+        button->click_started = true;
+    }
+}
+
+static void button_mouse_up(UIElement ui_element, int mbutton, int x, int y) {
+    if (mbutton != 1)
+        return;
+    struct UIButton* button = get_extention_data(ui_element);
+    if (button->click_started && point_inside(ui_element, x, y)) {
+        button->on_click(button->user_data);
+    }
+    button->click_started = false;
+}
+
+const struct UICallbackTable button_table = {
+    .ui_draw = basic_draw,
+    .ui_resize = NULL,
+    .ui_mouse_down = button_mouse_down,
+    .ui_mouse_up = button_mouse_up,
+    .ui_mouse_moved = NULL
+};
+
+UIElement ui_button(int window_w, int window_h, void (*on_click)(void*), void* user_data) {
+    UIElement out = malloc(sizeof(struct UIElement) + sizeof(struct UIButton));
+    init_ui_element(out, window_w, window_h);
+    out->type = UI_BUTTON;
+    out->callback = &button_table;
+    struct UIButton* button = get_extention_data(out);
+    button->on_click = on_click;
+    button->user_data = user_data;
+    button->click_started = false;
+    return out;
+}
+
 void ui_resizer_set_curser_func(UIElement ui_element, void (*curser_func)
                                 (void* user_data, enum ui_direction),
                                 void* user_data) {
@@ -313,9 +358,11 @@ void ui_draw(UIElement ui_element, int window_w, int window_h) {
         glGetIntegerv(GL_SCISSOR_BOX, scissors_box);
     int x, y, w, h;
     dimensions(ui_element, window_w, window_h, &x, &y, &w, &h);
-    glScissor(x + MIN(w, 0), y + MIN(h, 0), ABS(w), ABS(h));
+    glScissor(x, y, w, h);
     if (ui_element->callback->ui_draw)
         ui_element->callback->ui_draw(ui_element, window_w, window_h);
+    for (int i = 0; i < ui_element->child_count; i++)
+        ui_draw(ui_element->children[i], window_w, window_h);
     if (!scissors) {
         glDisable(GL_SCISSOR_TEST);
         glScissor(scissors_box[0], scissors_box[1], scissors_box[2], scissors_box[3]);
@@ -348,6 +395,34 @@ void ui_mouse_moved(UIElement ui_element, int x, int y) {
         ui_element->callback->ui_mouse_moved(ui_element, x, y);
     for (int i = 0; i < ui_element->child_count; i++)
         ui_mouse_moved(ui_element->children[i], x, y);
+}
+
+void ui_set_parent(UIElement ui_element, UIElement parent) {
+    if (ui_element->parent) {
+        UIElement old_parent = ui_element->parent;
+        bool move = false;
+        for (int i = 0; i < ui_element->parent->child_count + 1; i++) {
+            if (move)
+                old_parent->children[i-1] = old_parent->children[i];
+            else
+                move = ui_element->parent->children[i] == ui_element;
+        }
+        old_parent->child_count--;
+    }
+    if (parent) {
+        parent->children = realloc(parent->children, sizeof(UIElement) * (parent->child_count + 1));
+        parent->children[parent->child_count] = ui_element;
+        parent->child_count++;
+    }
+    ui_element->parent = parent;
+}
+
+void ui_free(UIElement ui_element) {
+    if (ui_element->callback->ui_free)
+        ui_element->callback->ui_free(ui_element);
+    for (int i = 0; i < ui_element->child_count; i++)
+        ui_free(ui_element->children[i]);
+    free(ui_element);
 }
 
 static int* find_param_i(UIElement ui_element, int param) {
