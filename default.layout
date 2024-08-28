@@ -1,0 +1,32 @@
+<canvas_left:canvas> {
+    x = 0;
+    y = 0;
+    width = 20%;
+    height = 100%;
+    min_width = 200px;
+    max_width = 600px;
+    <resizer_left:resizer> {
+        direction = horizontal;
+        item1 = @canvas_left;
+        side_ratio = 1.5;
+        y = 0;
+        width = 4px;
+        height = 100%;
+    }
+}
+<canvas_right:canvas> {
+    x = 100%;
+    y = 0;
+    width = -20%;
+    height = 100%;
+    min_width = -600px;
+    max_width = -200px;
+    <resizer_righ:resizert> {
+        direction = horizontal;
+        item2 = @canvas_right;
+        side_ratio = 1.5;
+        y = 0;
+        width = 4px;
+        height = 100%;
+    }
+}

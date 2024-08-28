@@ -34,11 +34,13 @@ enum UI_CONSTS {
 UIElement ui_canvas(int window_w, int window_h);
 UIElement ui_resizer(int window_w, int window_h, enum ui_direction direction,
                      UIElement item1, UIElement item2, double size);
-UIElement ui_button(int window_w, int window_h,
-                    void (*on_click)(void* user_data), void* user_data);
 void ui_resizer_set_curser_func(UIElement ui_element, void (*curser_func)
                                 (void* user_data, enum ui_direction),
                                 void* user_data);
+UIElement ui_button(int window_w, int window_h,
+                    void (*on_click)(void* user_data), void* user_data);
+
+void ui_free(UIElement ui_element);
 
 void ui_draw(UIElement ui_element, int window_w, int window_h);
 void ui_resize(UIElement ui_element, int window_w, int window_h);
@@ -51,7 +53,7 @@ int ui_get_i(UIElement ui_element, int param);
 void ui_set_d(UIElement ui_element, int param, double val);
 double ui_get_d(UIElement ui_element, int param);
 void ui_set_parent(UIElement ui_element, UIElement parent);
-void ui_free(UIElement ui_element);
+void ui_parse_style(UIElement ui_element, const char* style);
 
 UIStyleSheet ui_access_stylesheet(UIElement ui_element);
 

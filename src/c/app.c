@@ -108,58 +108,31 @@ void set_cur(void* user_data, enum ui_direction dir) {
         program_state->resize_ew_cur : program_state->resize_ns_cur);
 }
 
-static void on_click(void* user_data) {
-    (void) user_data;
-    printf("clicked\n");
-}
-
 static void setup_layout(struct program_state* program_state, int w, int h) {
-    program_state->right_ui = ui_canvas(w, h);
-    ui_set_d(program_state->right_ui, UI_X, 0);
-    ui_set_d(program_state->right_ui, UI_Y, 0);
-    ui_set_d(program_state->right_ui, UI_WIDTH, .2);
-    ui_set_d(program_state->right_ui, UI_HEIGHT, 1);
-    ui_set_i(program_state->right_ui, UI_MIN_WIDTH, 200);
-    ui_set_i(program_state->right_ui, UI_MAX_WIDTH, 600);
-    
     program_state->left_ui = ui_canvas(w, h);
-    ui_set_d(program_state->left_ui, UI_X, 1);
-    ui_set_d(program_state->left_ui, UI_Y, 0);
-    ui_set_d(program_state->left_ui, UI_WIDTH, -.2);
-    ui_set_d(program_state->left_ui, UI_HEIGHT, 1);
-    ui_set_i(program_state->left_ui, UI_MIN_WIDTH, -600);
-    ui_set_i(program_state->left_ui, UI_MAX_WIDTH, -200);
+    const char* style_canvas_l = "x=0; y=0; w=0.2; h=1; min_w=200; max_w=600";
+    ui_parse_style(program_state->left_ui, style_canvas_l);
+
+    program_state->right_ui = ui_canvas(w, h);
+    const char* style_canvas_r = "x=1; y=0; w=-0.2; h=1; min_w=-600; max_w=-200";
+    ui_parse_style(program_state->right_ui, style_canvas_r);
 
     program_state->resizer_left = ui_resizer(w, h, HORIZONTAL,
-                                             program_state->left_ui, NULL, 1.5);
-    ui_set_d(program_state->resizer_left, UI_Y, 0);
-    ui_set_d(program_state->resizer_left, UI_WIDTH, 1);
-    ui_set_d(program_state->resizer_left, UI_HEIGHT, 1);
-    ui_set_i(program_state->resizer_left, UI_MIN_WIDTH, 4);
-    ui_set_i(program_state->resizer_left, UI_MAX_WIDTH, 4);
+                                             program_state->right_ui, NULL, 1.5);
+    const char* style_resizer_l = "y=0; w=1; h=1; min_w=4; max_w=4";
+    ui_parse_style(program_state->resizer_left, style_resizer_l);
     ui_resizer_set_curser_func(program_state->resizer_left, set_cur, program_state);
-    ui_set_parent(program_state->resizer_left, program_state->left_ui);
+    ui_set_parent(program_state->resizer_left, program_state->right_ui);
 
     program_state->resizer_right = ui_resizer(w, h, HORIZONTAL,
-                                              NULL, program_state->right_ui, 1.5);
-    ui_set_d(program_state->resizer_right, UI_Y, 0);
-    ui_set_d(program_state->resizer_right, UI_WIDTH, -1);
-    ui_set_d(program_state->resizer_right, UI_HEIGHT, 1);
-    ui_set_i(program_state->resizer_right, UI_MIN_WIDTH, -4);
-    ui_set_i(program_state->resizer_right, UI_MAX_WIDTH, -4);
+                                              NULL, program_state->left_ui, 1.5);
+    const char* style_resizer_r = "y=0; w=-1; h=1; min_w=-4; max_w=-4";
+    ui_parse_style(program_state->resizer_right, style_resizer_r);
     ui_resizer_set_curser_func(program_state->resizer_right, set_cur, program_state);
-    ui_set_parent(program_state->resizer_right, program_state->right_ui);
+    ui_set_parent(program_state->resizer_right, program_state->left_ui);
     
-    program_state->toolbox_buttons = malloc(sizeof(UIElement) * 2);
-
-    program_state->toolbox_buttons[0] = ui_button(w, h, on_click, NULL);
-    ui_set_i(program_state->toolbox_buttons[0], UI_MIN_WIDTH, 100);
-    ui_set_i(program_state->toolbox_buttons[0], UI_MAX_WIDTH, 100);
-    ui_set_i(program_state->toolbox_buttons[0], UI_MIN_HEIGHT, 100);
-    ui_set_i(program_state->toolbox_buttons[0], UI_MAX_HEIGHT, 100);
-    ui_set_parent(program_state->toolbox_buttons[0], program_state->left_ui);
-    ui_access_stylesheet(program_state->toolbox_buttons[0])->background_color = color32(0, 0, 0, 0);
-    program_state->toolbox_buttons[1] = NULL;
+    program_state->toolbox_buttons = malloc(sizeof(UIElement) * 1);
+    program_state->toolbox_buttons[0] = NULL;
 }
 
 static void user_data_init(struct program_state* program_state) {

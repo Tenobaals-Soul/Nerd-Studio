@@ -5,6 +5,12 @@
 #include <stdio.h>
 #include <limits.h>
 #include <assert.h>
+#include <string.h>
+
+#if defined(_MSC_VER)
+#define strtok_r strtok_s
+#endif
+
 
 #define GET_EXTENTION_DATA(ui_element, t) ({assert(ui_element->type == t); get_extention_data(ui_element);})
 
@@ -446,11 +452,17 @@ void ui_set_i(UIElement ui_element, int param, int val) {
     int* ptr = find_param_i(ui_element, param);
     if (ptr)
         *ptr = val;
+    else
+        printf("[UI][WARNING] trying to set invalid parameter set with type int\n");
 }
 
 int ui_get_i(UIElement ui_element, int param) {
     int* ptr = find_param_i(ui_element, param);
-    return ptr ? *ptr : 0;
+    if (ptr)
+        return *ptr;
+    else
+        printf("[UI][WARNING] trying to get invalid parameter set with type int\n");
+    return 0;
 }
 
 static double* find_param_d(UIElement ui_element, int param) {
@@ -481,10 +493,85 @@ double ui_get_d(UIElement ui_element, int param) {
     if (ptr)
         return *ptr;
     else
-        printf("[UI][WARNING] trying to set invalid parameter set with type double\n");
+        printf("[UI][WARNING] trying to get invalid parameter set with type double\n");
     return 0;
 }
 
 UIStyleSheet ui_access_stylesheet(UIElement ui_element) {
     return &ui_element->style;
+}
+
+static void parse_param_as_int(int* out, const char* valstr) {
+    int val;
+    if (sscanf(valstr, "%d", &val) != 1) {
+        printf("[UI][WARNING] invalid value \"%s\"\n", valstr);
+        return;
+    }
+    *out = val;
+}
+
+static void parse_param_as_double(double* out, const char* valstr) {
+    double val;
+    if (sscanf(valstr, "%lf", &val) != 1) {
+        printf("[UI][WARNING] invalid value \"%s\"\n", valstr);
+        return;
+    }
+    *out = val;
+}
+
+static void parse_param_as_color(color32* out, const char* valstr) {
+    char val[8] = "000000FF";
+    if (sscanf(valstr, "%8c", val) != 1 || sscanf(valstr, "%6c", val) != 1) {
+        printf("[UI][WARNING] invalid value \"%s\"\n", valstr);
+        return;
+    }
+    for (int i = 0; i < 4; i++) {
+        int p = i << 1;
+        out->rgba[i] = (val[p] << 4) + val[p+1];
+    }
+}
+
+static void parse_single_style(UIElement ui_element, const char* style) {
+    char key[256], val[256];
+    if (sscanf(style, " %255[a-zA-Z0-9_] = %255s ", key, val) != 2) {
+        printf("[UI][WARNING] invalid style format \"%s\"\n", style);
+        return;
+    }
+    if (strcmp(key, "x") == 0)
+        parse_param_as_double(&ui_element->x, val);
+    else if (strcmp(key, "y") == 0)
+        parse_param_as_double(&ui_element->y, val);
+    else if (strcmp(key, "w") == 0)
+        parse_param_as_double(&ui_element->w, val);
+    else if (strcmp(key, "h") == 0)
+        parse_param_as_double(&ui_element->h, val);
+    else if (strcmp(key, "min_w") == 0)
+        parse_param_as_int(&ui_element->min_w, val);
+    else if (strcmp(key, "max_w") == 0)
+        parse_param_as_int(&ui_element->max_w, val);
+    else if (strcmp(key, "min_h") == 0)
+        parse_param_as_int(&ui_element->min_h, val);
+    else if (strcmp(key, "max_h") == 0)
+        parse_param_as_int(&ui_element->max_h, val);
+    else if (strcmp(key, "color") == 0)
+        parse_param_as_color(&ui_element->style.color, val);
+    else if (strcmp(key, "background_color") == 0)
+        parse_param_as_color(&ui_element->style.background_color, val);
+    else if (strcmp(key, "border_color") == 0)
+        parse_param_as_color(&ui_element->style.border_color, val);
+    else if (strcmp(key, "border_strengh") == 0)
+        parse_param_as_int(&ui_element->style.border_strengh, val);
+    else
+        printf("[UI][WARNING] invalid style name \"%s\"\n", key);
+}
+
+void ui_parse_style(UIElement ui_element, const char* style) {
+    char* copy = malloc(strlen(style) + 1);
+    strcpy(copy, style);
+    char* strtok_r_state;
+    char* current = strtok_r(copy, ";", &strtok_r_state);
+    do  {
+        parse_single_style(ui_element, current);
+    } while((current = strtok_r(NULL, ";", &strtok_r_state)));
+    free(copy);
 }
