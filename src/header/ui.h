@@ -24,6 +24,8 @@ enum UI_CONSTS {
     UI_HEIGHT,
     UI_X,
     UI_Y,
+    UI_OFFSET_X,
+    UI_OFFSET_Y,
     UI_MIN_WIDTH,
     UI_MAX_WIDTH,
     UI_MIN_HEIGHT,

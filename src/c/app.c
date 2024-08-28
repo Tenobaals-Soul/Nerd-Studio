@@ -112,21 +112,19 @@ static void setup_layout(struct program_state* program_state, int w, int h) {
     program_state->left_ui = ui_canvas(w, h);
     const char* style_canvas_l = "x=0; y=0; w=0.2; h=1; min_w=200; max_w=600";
     ui_parse_style(program_state->left_ui, style_canvas_l);
-
-    program_state->right_ui = ui_canvas(w, h);
-    const char* style_canvas_r = "x=1; y=0; w=-0.2; h=1; min_w=-600; max_w=-200";
-    ui_parse_style(program_state->right_ui, style_canvas_r);
-
     program_state->resizer_left = ui_resizer(w, h, HORIZONTAL,
                                              program_state->left_ui, NULL, 1.5);
-    const char* style_resizer_l = "y=0; w=1; h=1; min_w=4; max_w=4";
+    const char* style_resizer_l = "y=0; w=1; h=1; min_w=4; max_w=4; off_x=-2";
     ui_parse_style(program_state->resizer_left, style_resizer_l);
     ui_resizer_set_curser_func(program_state->resizer_left, set_cur, program_state);
     ui_set_parent(program_state->resizer_left, program_state->left_ui);
 
+    program_state->right_ui = ui_canvas(w, h);
+    const char* style_canvas_r = "x=1; y=0; w=-0.2; h=1; min_w=-600; max_w=-200";
+    ui_parse_style(program_state->right_ui, style_canvas_r);
     program_state->resizer_right = ui_resizer(w, h, HORIZONTAL,
                                               NULL, program_state->right_ui, 1.5);
-    const char* style_resizer_r = "y=0; w=-1; h=1; min_w=-4; max_w=-4";
+    const char* style_resizer_r = "y=0; w=-1; h=1; min_w=-4; max_w=-4; off_x=2";
     ui_parse_style(program_state->resizer_right, style_resizer_r);
     ui_resizer_set_curser_func(program_state->resizer_right, set_cur, program_state);
     ui_set_parent(program_state->resizer_right, program_state->right_ui);

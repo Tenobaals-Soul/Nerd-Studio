@@ -26,7 +26,7 @@ struct UICallbackTable {
 struct UIElement {
     enum UIType type;
     const struct UICallbackTable* callback;
-    int min_w, min_h, max_w, max_h;
+    int min_w, min_h, max_w, max_h, off_x, off_y;
     double x, y, w, h;
     struct UIElement* parent;
     struct UIElement** children;
@@ -55,8 +55,8 @@ struct UIButton {
 
 static void dimensions(UIElement ui_element, int window_w, int window_h,
                        int* x, int* y, int* w, int* h) {
-    *x = ui_element->x * window_w;
-    *y = ui_element->y * window_h;
+    *x = ui_element->x * window_w + ui_element->off_x;
+    *y = ui_element->y * window_h + ui_element->off_y;
     *w = CLAMP(ui_element->min_w,
                ui_element->max_w,
                ui_element->w * window_w);
@@ -97,6 +97,8 @@ static void init_ui_element(UIElement init, int window_w, int window_h) {
     init->max_w = INT_MAX;   
     init->min_h = 0;
     init->max_h = INT_MAX;
+    init->off_x = 0;
+    init->off_y = 0;
 
     init->style.background_color = color32(0x20, 0x20, 0x20, 0x80);
     init->style.border_color = color32(0x20, 0x20, 0x20, 0xff);
@@ -427,6 +429,10 @@ static int* find_param_i(UIElement ui_element, int param) {
         return &ui_element->min_h;
     case UI_MAX_HEIGHT:
         return &ui_element->max_h;
+    case UI_OFFSET_X:
+        return &ui_element->off_x;
+    case UI_OFFSET_Y:
+        return &ui_element->off_y;
     default:
         return NULL;
     }
@@ -537,6 +543,10 @@ static void parse_single_style(UIElement ui_element, const char* style) {
         parse_param_as_int(&ui_element->min_h, val);
     else if (strcmp(key, "max_h") == 0)
         parse_param_as_int(&ui_element->max_h, val);
+    else if (strcmp(key, "off_x") == 0)
+        parse_param_as_int(&ui_element->off_x, val);
+    else if (strcmp(key, "off_y") == 0)
+        parse_param_as_int(&ui_element->off_y, val);
     else if (strcmp(key, "color") == 0)
         parse_param_as_color(&ui_element->style.color, val);
     else if (strcmp(key, "background_color") == 0)
