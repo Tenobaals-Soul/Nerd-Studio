@@ -118,18 +118,18 @@ static void setup_layout(struct program_state* program_state, int w, int h) {
     ui_parse_style(program_state->right_ui, style_canvas_r);
 
     program_state->resizer_left = ui_resizer(w, h, HORIZONTAL,
-                                             program_state->right_ui, NULL, 1.5);
+                                             program_state->left_ui, NULL, 1.5);
     const char* style_resizer_l = "y=0; w=1; h=1; min_w=4; max_w=4";
     ui_parse_style(program_state->resizer_left, style_resizer_l);
     ui_resizer_set_curser_func(program_state->resizer_left, set_cur, program_state);
-    ui_set_parent(program_state->resizer_left, program_state->right_ui);
+    ui_set_parent(program_state->resizer_left, program_state->left_ui);
 
     program_state->resizer_right = ui_resizer(w, h, HORIZONTAL,
-                                              NULL, program_state->left_ui, 1.5);
+                                              NULL, program_state->right_ui, 1.5);
     const char* style_resizer_r = "y=0; w=-1; h=1; min_w=-4; max_w=-4";
     ui_parse_style(program_state->resizer_right, style_resizer_r);
     ui_resizer_set_curser_func(program_state->resizer_right, set_cur, program_state);
-    ui_set_parent(program_state->resizer_right, program_state->left_ui);
+    ui_set_parent(program_state->resizer_right, program_state->right_ui);
     
     program_state->toolbox_buttons = malloc(sizeof(UIElement) * 1);
     program_state->toolbox_buttons[0] = NULL;

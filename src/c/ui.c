@@ -176,17 +176,17 @@ static void position_resizer(UIElement ui_element) {
         int x, y, w, h;
         dimensions(resizer->connected_item1, resizer->window_w, resizer->window_h, &x, &y, &w, &h);
         if (resizer->direction == HORIZONTAL)
-            ui_element->x = (x + MIN(w, 0)) / (double) resizer->window_w;
+            ui_element->x = (x + MAX(w, 0)) / (double) resizer->window_w;
         else
-            ui_element->y = (y + MIN(w, 0)) / (double) resizer->window_h;
+            ui_element->y = (y + MAX(w, 0)) / (double) resizer->window_h;
     }
     else if (resizer->connected_item2 != NULL) {
         int x, y, w, h;
         dimensions(resizer->connected_item2, resizer->window_w, resizer->window_h, &x, &y, &w, &h);
         if (resizer->direction == HORIZONTAL)
-            ui_element->x = (x + MAX(w, 0)) / (double) resizer->window_w;
+            ui_element->x = (x + MIN(w, 0)) / (double) resizer->window_w;
         else
-            ui_element->y = (y + MAX(w, 0)) / (double) resizer->window_h;
+            ui_element->y = (y + MIN(w, 0)) / (double) resizer->window_h;
     }
 }
 
@@ -223,43 +223,27 @@ static void resizer_mouse_moved(UIElement ui_element, int x, int y) {
         if (resizer->direction == HORIZONTAL) {
             double nx = x / (double) resizer->window_w;
             if (resizer->connected_item1) {
-                if (resizer->connected_item1->w >= 0) {
-                    resizer->connected_item1->w = nx - resizer->connected_item1->x;
+                resizer->connected_item1->w = nx - resizer->connected_item1->x;
+                if (resizer->connected_item1->w < 0)
                     resizer->connected_item1->x = nx;
-                }
-                else {
-                    resizer->connected_item1->w = nx - resizer->connected_item1->x;
-                }
             }
             if (resizer->connected_item2) {
-                if (resizer->connected_item2->w >= 0) {
-                    resizer->connected_item2->w = nx - resizer->connected_item2->x;
-                }
-                else {
-                    resizer->connected_item2->w = nx - resizer->connected_item2->x;
+                resizer->connected_item2->w = nx - resizer->connected_item2->x;
+                if (resizer->connected_item2->w >= 0)
                     resizer->connected_item2->x = nx;
-                }
             }
         }
         else {
             double ny = y / (double) resizer->window_h;
             if (resizer->connected_item1) {
-                if (resizer->connected_item1->h >= 0) {
-                    resizer->connected_item1->h = ny - resizer->connected_item1->y;
+                resizer->connected_item1->h = ny - resizer->connected_item1->y;
+                if (resizer->connected_item1->h < 0)
                     resizer->connected_item1->y = ny;
-                }
-                else {
-                    resizer->connected_item1->h = ny - resizer->connected_item1->y;
-                }
             }
             if (resizer->connected_item2) {
-                if (resizer->connected_item2->h >= 0) {
-                    resizer->connected_item2->h = ny - resizer->connected_item2->y;
-                }
-                else {
-                    resizer->connected_item2->h = ny - resizer->connected_item2->y;
+                resizer->connected_item2->h = ny - resizer->connected_item2->y;
+                if (resizer->connected_item2->h >= 0)
                     resizer->connected_item2->y = ny;
-                }
             }
         }
     }
