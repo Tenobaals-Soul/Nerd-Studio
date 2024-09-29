@@ -15,8 +15,16 @@ typedef struct UIStyleSheet {
 
 typedef struct UIElement* UIElement;
 
-enum ui_direction {
-    HORIZONTAL, VERTICAL
+typedef struct UITransform {
+    int min_w, min_h, max_w, max_h, off_x, off_y;
+    double x, y, w, h;
+}* UITransform;
+
+enum UIDirection {
+    RIGHT = 0, HORIZONTAL = 0,
+    DOWN = 1, VERTICAL = 1,
+    LEFT = 2,
+    UP = 3
 };
 
 enum UI_CONSTS {
@@ -34,17 +42,17 @@ enum UI_CONSTS {
 };
 
 UIElement ui_canvas(int window_w, int window_h);
-UIElement ui_resizer(int window_w, int window_h, enum ui_direction direction,
+UIElement ui_resizer(int window_w, int window_h, enum UIDirection direction,
                      UIElement item1, UIElement item2, double size);
 void ui_resizer_set_curser_func(UIElement ui_element, void (*curser_func)
-                                (void* user_data, enum ui_direction),
+                                (void* user_data, enum UIDirection),
                                 void* user_data);
 UIElement ui_button(int window_w, int window_h,
                     void (*on_click)(void* user_data), void* user_data);
 
 void ui_free(UIElement ui_element);
 
-void ui_draw(UIElement ui_element, int window_w, int window_h);
+void ui_draw(UIElement ui_element);
 void ui_resize(UIElement ui_element, int window_w, int window_h);
 void ui_mouse_down(UIElement ui_element, int button, int x, int y);
 void ui_mouse_up(UIElement ui_element, int button, int x, int y);

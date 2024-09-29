@@ -29,8 +29,8 @@ static void display_func(struct program_state* program_state) {
     glClear(GL_COLOR_BUFFER_BIT);
     int w, h;
     glfwGetFramebufferSize(program_state->window, &w, &h);
-    ui_draw(program_state->left_ui, w, h);
-    ui_draw(program_state->right_ui, w, h);
+    ui_draw(program_state->left_ui);
+    ui_draw(program_state->right_ui);
 
     glfwSwapBuffers(program_state->window);
 }
@@ -50,8 +50,8 @@ static void resize_func(GLFWwindow* window, int x, int y) {
     glLoadIdentity();
     set_gl_coordinates(x, y);
 
-    ui_resize(program_state->resizer_left, x, y);
-    ui_resize(program_state->resizer_right, x, y);
+    ui_resize(program_state->left_ui, x, y);
+    ui_resize(program_state->right_ui, x, y);
 }
 
 static void move_func(GLFWwindow* window, double x, double y) {
@@ -102,7 +102,7 @@ static void setup_window(struct program_state* program_state, int w, int h) {
     glEnable(GL_BLEND);
 }
 
-void set_cur(void* user_data, enum ui_direction dir) {
+void set_cur(void* user_data, enum UIDirection dir) {
     struct program_state* program_state = user_data;
     glfwSetCursor(program_state->window, dir == HORIZONTAL ?
         program_state->resize_ew_cur : program_state->resize_ns_cur);

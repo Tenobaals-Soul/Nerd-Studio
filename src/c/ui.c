@@ -14,8 +14,11 @@
 
 #define GET_EXTENTION_DATA(ui_element, t) ({assert(ui_element->type == t); get_extention_data(ui_element);})
 
+int window_width;
+int window_height;
+
 struct UICallbackTable {
-    void (*ui_draw)(UIElement ui_element, int window_w, int window_h);
+    void (*ui_draw)(UIElement ui_element);
     void (*ui_resize)(UIElement ui_element, int window_w, int window_h);
     void (*ui_mouse_down)(UIElement ui_element, int button, int x, int y);
     void (*ui_mouse_up)(UIElement ui_element, int button, int x, int y);
@@ -26,8 +29,7 @@ struct UICallbackTable {
 struct UIElement {
     enum UIType type;
     const struct UICallbackTable* callback;
-    int min_w, min_h, max_w, max_h, off_x, off_y;
-    double x, y, w, h;
+    struct UITransform transform;
     struct UIElement* parent;
     struct UIElement** children;
     int child_count;
@@ -38,13 +40,11 @@ struct UIElement {
 struct UIResizer {
     UIElement connected_item1;
     UIElement connected_item2;
-    enum ui_direction direction;
+    enum UIDirection direction;
     double side_ration;
-    void (*set_cursor)(void* user_data, enum ui_direction);
+    void (*set_cursor)(void* user_data, enum UIDirection);
     void* user_data;
     bool currently_grabbed;
-    int window_w;
-    int window_h;
 };
 
 struct UIButton {
@@ -53,16 +53,16 @@ struct UIButton {
     bool click_started;
 };
 
-static void dimensions(UIElement ui_element, int window_w, int window_h,
-                       int* x, int* y, int* w, int* h) {
-    *x = ui_element->x * window_w + ui_element->off_x;
-    *y = ui_element->y * window_h + ui_element->off_y;
-    *w = CLAMP(ui_element->min_w,
-               ui_element->max_w,
-               ui_element->w * window_w);
-    *h = CLAMP(ui_element->min_h,
-               ui_element->max_h,
-               ui_element->h * window_h);
+static void dimensions(UITransform transform, int window_w, int window_h,
+                                   int* x, int* y, int* w, int* h) {
+    *x = transform->x * window_w + transform->off_x;
+    *y = transform->y * window_h + transform->off_y;
+    *w = CLAMP(transform->min_w,
+               transform->max_w,
+               transform->w * window_w);
+    *h = CLAMP(transform->min_h,
+               transform->max_h,
+               transform->h * window_h);
     if (*w < 0) {
         *x += *w;       
         *w = -*w;
@@ -71,10 +71,15 @@ static void dimensions(UIElement ui_element, int window_w, int window_h,
         *y += *h;
         *h = -*h;
     }
-    ui_element->_x = *x;
-    ui_element->_y = *y;
-    ui_element->_w = *w;
-    ui_element->_h = *h;
+}
+
+static void recalculate_dimensions(UIElement ui_element, int window_w, int window_h) {
+    int x, y, w, h;
+    dimensions(&ui_element->transform, window_w, window_h, &x, &y, &w, &h);
+    ui_element->_x = x;
+    ui_element->_y = y;
+    ui_element->_w = w;
+    ui_element->_h = h;
 }
 
 static bool point_inside(UIElement ui_element, int x, int y) {
@@ -89,37 +94,41 @@ static void init_ui_element(UIElement init, int window_w, int window_h) {
     init->child_count = 0;
     init->children = NULL;
 
-    init->x = 0;
-    init->y = 0;
-    init->w = 0;
-    init->h = 0;
-    init->min_w = 0;
-    init->max_w = INT_MAX;   
-    init->min_h = 0;
-    init->max_h = INT_MAX;
-    init->off_x = 0;
-    init->off_y = 0;
+    init->transform.x = 0;
+    init->transform.y = 0;
+    init->transform.w = 0;
+    init->transform.h = 0;
+    init->transform.min_w = 0;
+    init->transform.max_w = INT_MAX;   
+    init->transform.min_h = 0;
+    init->transform.max_h = INT_MAX;
+    init->transform.off_x = 0;
+    init->transform.off_y = 0;
 
     init->style.background_color = color32(0x20, 0x20, 0x20, 0x80);
     init->style.border_color = color32(0x20, 0x20, 0x20, 0xff);
     init->style.border_strengh = 2;
     init->style.color = color32(0xff, 0xff, 0xff, 0x80);
+
+    window_width = window_w;
+    window_height = window_h;
     
     init->callback = NULL;
 
-    int x, y, w, h;
-    dimensions(init, window_w, window_h, &x, &y, &w, &h);
+    recalculate_dimensions(init, window_w, window_h);
 }
 
 static void* get_extention_data(UIElement ui_element) {
     return ui_element + 1;
 }
 
-static void basic_draw(UIElement ui_element, int window_w, int window_h) {
+static void basic_draw(UIElement ui_element) {
     if (ui_element->style.border_strengh > 0) {
         int t = ui_element->style.border_strengh;
-        int x, y, w, h;
-        dimensions(ui_element, window_w, window_h, &x, &y, &w, &h);
+        int x = ui_element->_x;
+        int y = ui_element->_y;
+        int w = ui_element->_w;
+        int h = ui_element->_h;
         glColor4ubv(ui_element->style.border_color.rgba);
         glRecti(x,      y,
                 x + w,  y + t);
@@ -152,12 +161,15 @@ UIElement ui_canvas(int window_w, int window_h) {
     return out;
 }
 
-static void resizer_draw(UIElement ui_element, int window_w, int window_h) {
+static void resizer_draw(UIElement ui_element) {
     struct UIResizer* res = GET_EXTENTION_DATA(ui_element, UI_RESIZER);
-    basic_draw(ui_element, window_w, window_h);
+    basic_draw(ui_element);
     glColor4ubv(ui_element->style.color.rgba);
-    int x, y, w, h, t;
-    dimensions(ui_element, window_w, window_h, &x, &y, &w, &h);
+    int x = ui_element->_x;
+    int y = ui_element->_y;
+    int w = ui_element->_w;
+    int h = ui_element->_h;
+    int t;
     if (res->direction == HORIZONTAL) {
         t = w * res->side_ration;
         for (int i = -2; i <= 2; i+=2)
@@ -175,27 +187,21 @@ static void resizer_draw(UIElement ui_element, int window_w, int window_h) {
 static void position_resizer(UIElement ui_element) {
     struct UIResizer* resizer = GET_EXTENTION_DATA(ui_element, UI_RESIZER);
     if (resizer->connected_item1 != NULL) {
-        int x, y, w, h;
-        dimensions(resizer->connected_item1, resizer->window_w, resizer->window_h, &x, &y, &w, &h);
         if (resizer->direction == HORIZONTAL)
-            ui_element->x = (x + MAX(w, 0)) / (double) resizer->window_w;
+            ui_element->transform.x = (resizer->connected_item1->_x + MAX(resizer->connected_item1->_w, 0)) / (double) window_width;
         else
-            ui_element->y = (y + MAX(w, 0)) / (double) resizer->window_h;
+            ui_element->transform.y = (resizer->connected_item1->_y + MAX(resizer->connected_item1->_h, 0)) / (double) window_height;
     }
     else if (resizer->connected_item2 != NULL) {
-        int x, y, w, h;
-        dimensions(resizer->connected_item2, resizer->window_w, resizer->window_h, &x, &y, &w, &h);
         if (resizer->direction == HORIZONTAL)
-            ui_element->x = (x + MIN(w, 0)) / (double) resizer->window_w;
+            ui_element->transform.x = (resizer->connected_item2->_x + MIN(resizer->connected_item2->_w, 0)) / (double) window_width;
         else
-            ui_element->y = (y + MIN(w, 0)) / (double) resizer->window_h;
+            ui_element->transform.y = (resizer->connected_item2->_y + MIN(resizer->connected_item2->_h, 0)) / (double) window_height;
     }
 }
 
 static void resizer_resize(UIElement ui_element, int window_w, int window_h) {
-    struct UIResizer* resizer = GET_EXTENTION_DATA(ui_element, UI_RESIZER);
-    resizer->window_w = window_w;
-    resizer->window_h = window_h;
+    (void) window_w; (void) window_h;
     position_resizer(ui_element);
 }
 
@@ -223,29 +229,29 @@ static void resizer_mouse_moved(UIElement ui_element, int x, int y) {
     }
     if (resizer->currently_grabbed) {
         if (resizer->direction == HORIZONTAL) {
-            double nx = x / (double) resizer->window_w;
+            double nx = x / (double) window_width;
             if (resizer->connected_item1) {
-                resizer->connected_item1->w = nx - resizer->connected_item1->x;
-                if (resizer->connected_item1->w < 0)
-                    resizer->connected_item1->x = nx;
+                resizer->connected_item1->transform.w = nx - resizer->connected_item1->transform.x;
+                if (resizer->connected_item1->transform.w < 0)
+                    resizer->connected_item1->transform.x = nx;
             }
             if (resizer->connected_item2) {
-                resizer->connected_item2->w = nx - resizer->connected_item2->x;
-                if (resizer->connected_item2->w >= 0)
-                    resizer->connected_item2->x = nx;
+                resizer->connected_item2->transform.w = nx - resizer->connected_item2->transform.x;
+                if (resizer->connected_item2->transform.w >= 0)
+                    resizer->connected_item2->transform.x = nx;
             }
         }
         else {
-            double ny = y / (double) resizer->window_h;
+            double ny = y / (double) window_height;
             if (resizer->connected_item1) {
-                resizer->connected_item1->h = ny - resizer->connected_item1->y;
-                if (resizer->connected_item1->h < 0)
-                    resizer->connected_item1->y = ny;
+                resizer->connected_item1->transform.h = ny - resizer->connected_item1->transform.x;
+                if (resizer->connected_item1->transform.h < 0)
+                    resizer->connected_item1->transform.y = ny;
             }
             if (resizer->connected_item2) {
-                resizer->connected_item2->h = ny - resizer->connected_item2->y;
-                if (resizer->connected_item2->h >= 0)
-                    resizer->connected_item2->y = ny;
+                resizer->connected_item2->transform.h = ny - resizer->connected_item2->transform.x;
+                if (resizer->connected_item2->transform.h >= 0)
+                    resizer->connected_item2->transform.y = ny;
             }
         }
     }
@@ -260,7 +266,7 @@ const struct UICallbackTable resizer_table = {
     .ui_mouse_moved = resizer_mouse_moved
 };
 
-UIElement ui_resizer(int window_w, int window_h, enum ui_direction direction,
+UIElement ui_resizer(int window_w, int window_h, enum UIDirection direction,
                      UIElement item1, UIElement item2, double side) {
     UIElement out = malloc(sizeof(struct UIElement) + sizeof(struct UIResizer));
     init_ui_element(out, window_w, window_h);
@@ -271,25 +277,27 @@ UIElement ui_resizer(int window_w, int window_h, enum ui_direction direction,
     resizer->connected_item2 = item2;
     resizer->direction = direction;
     resizer->side_ration = side;
-    resizer->window_w = window_w;
-    resizer->window_h = window_h;
     resizer->currently_grabbed = false;
 
     if (item1 != NULL) {
-        int x, y, w, h;
-        dimensions(item1, window_w, window_h, &x, &y, &w, &h);
+        int x = item1->_x;
+        int y = item1->_y;
+        int w = item1->_w;
+        int h = item1->_h;
         if (resizer->direction == HORIZONTAL)
-            out->x = (x + MIN(w, 0)) / (double) window_w;
+            out->transform.x = (x + MIN(w, 0)) / (double) window_w;
         else
-            out->y = (y + MIN(w, 0)) / (double) window_h;
+            out->transform.y = (y + MIN(h, 0)) / (double) window_h;
     }
     else if (item2 != NULL) {
-        int x, y, w, h;
-        dimensions(item2, window_w, window_h, &x, &y, &w, &h);
+        int x = item2->_x;
+        int y = item2->_y;
+        int w = item2->_w;
+        int h = item2->_h;
         if (resizer->direction == HORIZONTAL)
-            out->x = (x + MAX(w, 0)) / (double) window_w;
+            out->transform.x = (x + MAX(w, 0)) / (double) window_w;
         else
-            out->y = (y + MAX(w, 0)) / (double) window_h;
+            out->transform.y = (y + MAX(h, 0)) / (double) window_h;
     }
     return out;
 }
@@ -334,34 +342,36 @@ UIElement ui_button(int window_w, int window_h, void (*on_click)(void*), void* u
 }
 
 void ui_resizer_set_curser_func(UIElement ui_element, void (*curser_func)
-                                (void* user_data, enum ui_direction),
+                                (void* user_data, enum UIDirection),
                                 void* user_data) {
     struct UIResizer* resizer = GET_EXTENTION_DATA(ui_element, UI_RESIZER);
     resizer->set_cursor = curser_func;
     resizer->user_data = user_data;
 }
 
-void ui_draw(UIElement ui_element, int window_w, int window_h) {
+void ui_draw(UIElement ui_element) {
+    recalculate_dimensions(ui_element,window_width, window_height); // TODO: find a clean solution for this
     bool scissors = glIsEnabled(GL_SCISSOR_TEST);
     int scissors_box[4];
-    if (!scissors)
-        glEnable(GL_SCISSOR_TEST);
-    else
+    if (scissors)
         glGetIntegerv(GL_SCISSOR_BOX, scissors_box);
-    int x, y, w, h;
-    dimensions(ui_element, window_w, window_h, &x, &y, &w, &h);
-    glScissor(x, y, w, h);
+    else
+        glEnable(GL_SCISSOR_TEST);
+    glScissor(ui_element->_x, ui_element->_y, ui_element->_w, ui_element->_h);
     if (ui_element->callback->ui_draw)
-        ui_element->callback->ui_draw(ui_element, window_w, window_h);
+        ui_element->callback->ui_draw(ui_element);
     for (int i = 0; i < ui_element->child_count; i++)
-        ui_draw(ui_element->children[i], window_w, window_h);
-    if (!scissors) {
-        glDisable(GL_SCISSOR_TEST);
+        ui_draw(ui_element->children[i]);
+    if (scissors)
         glScissor(scissors_box[0], scissors_box[1], scissors_box[2], scissors_box[3]);
-    }
+    else
+        glDisable(GL_SCISSOR_TEST);
 }
 
 void ui_resize(UIElement ui_element, int window_w, int window_h) {
+    window_width = window_w;
+    window_height = window_h;
+    recalculate_dimensions(ui_element, window_w, window_h);
     if (ui_element->callback->ui_resize)
         ui_element->callback->ui_resize(ui_element, window_w, window_h);
     for (int i = 0; i < ui_element->child_count; i++)
@@ -422,17 +432,17 @@ static int* find_param_i(UIElement ui_element, int param) {
     case UI_CHILD_COUNT:
         return &ui_element->child_count;
     case UI_MIN_WIDTH:
-        return &ui_element->min_w;
+        return &ui_element->transform.min_w;
     case UI_MAX_WIDTH:
-        return &ui_element->max_w;
+        return &ui_element->transform.max_w;
     case UI_MIN_HEIGHT:
-        return &ui_element->min_h;
+        return &ui_element->transform.min_h;
     case UI_MAX_HEIGHT:
-        return &ui_element->max_h;
+        return &ui_element->transform.max_h;
     case UI_OFFSET_X:
-        return &ui_element->off_x;
+        return &ui_element->transform.off_x;
     case UI_OFFSET_Y:
-        return &ui_element->off_y;
+        return &ui_element->transform.off_y;
     default:
         return NULL;
     }
@@ -458,13 +468,13 @@ int ui_get_i(UIElement ui_element, int param) {
 static double* find_param_d(UIElement ui_element, int param) {
     switch (param) {
     case UI_X:
-        return &ui_element->x;
+        return &ui_element->transform.x;
     case UI_Y:
-        return &ui_element->y;
+        return &ui_element->transform.y;
     case UI_WIDTH:
-        return &ui_element->w;
+        return &ui_element->transform.w;
     case UI_HEIGHT:
-        return &ui_element->h;
+        return &ui_element->transform.h;
     default:
         return NULL;
     }
@@ -528,25 +538,25 @@ static void parse_single_style(UIElement ui_element, const char* style) {
         return;
     }
     if (strcmp(key, "x") == 0)
-        parse_param_as_double(&ui_element->x, val);
+        parse_param_as_double(&ui_element->transform.x, val);
     else if (strcmp(key, "y") == 0)
-        parse_param_as_double(&ui_element->y, val);
+        parse_param_as_double(&ui_element->transform.y, val);
     else if (strcmp(key, "w") == 0)
-        parse_param_as_double(&ui_element->w, val);
+        parse_param_as_double(&ui_element->transform.w, val);
     else if (strcmp(key, "h") == 0)
-        parse_param_as_double(&ui_element->h, val);
+        parse_param_as_double(&ui_element->transform.h, val);
     else if (strcmp(key, "min_w") == 0)
-        parse_param_as_int(&ui_element->min_w, val);
+        parse_param_as_int(&ui_element->transform.min_w, val);
     else if (strcmp(key, "max_w") == 0)
-        parse_param_as_int(&ui_element->max_w, val);
+        parse_param_as_int(&ui_element->transform.max_w, val);
     else if (strcmp(key, "min_h") == 0)
-        parse_param_as_int(&ui_element->min_h, val);
+        parse_param_as_int(&ui_element->transform.min_h, val);
     else if (strcmp(key, "max_h") == 0)
-        parse_param_as_int(&ui_element->max_h, val);
+        parse_param_as_int(&ui_element->transform.max_h, val);
     else if (strcmp(key, "off_x") == 0)
-        parse_param_as_int(&ui_element->off_x, val);
+        parse_param_as_int(&ui_element->transform.off_x, val);
     else if (strcmp(key, "off_y") == 0)
-        parse_param_as_int(&ui_element->off_y, val);
+        parse_param_as_int(&ui_element->transform.off_y, val);
     else if (strcmp(key, "color") == 0)
         parse_param_as_color(&ui_element->style.color, val);
     else if (strcmp(key, "background_color") == 0)
